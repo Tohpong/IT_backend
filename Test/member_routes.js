@@ -1,0 +1,143 @@
+
+
+import { Router } from 'express';
+import { pool } from '../lib/db.js';
+
+const router = Router();
+
+// GET /member  → ดึงผู้ใช้ทั้งหมด
+router.get('/', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM Member');
+    res.json(rows);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+// GET /member/:id  → ดูผู้ใช้รายคน
+router.get('/:id', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT member_id, full_name, age, phone, birthdate, gender FROM Member WHERE member_id = ?', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+// POST /member  → เพิ่มผู้ใช้ใหม่
+/** POST /member – สร้างสมาชิกใหม่โดยไม่ต้องส่ง member_id */
+router.post('/', async (req, res) => {
+  try {
+    const {
+      full_name,
+      age,
+      phone,
+      birthdate,   // 'YYYY-MM-DD' หรือ null
+      gender,
+      account_id   // ถ้า schema คุณยัง NOT NULL + FK ต้องส่งมาและต้องมีอยู่จริง
+    } = req.body;
+
+    // เช็กฟิลด์บังคับขั้นต่ำ
+    if (!full_name || age == null || !phone || !gender) {
+      return res.status(400).json({ error: 'full_name, age, phone, gender ต้องไม่ว่าง' });
+    }
+
+    // ถ้า schema ยังบังคับ account_id ให้เช็กด้วย
+    // (คอมเมนต์ทิ้งถ้า account_id เป็น NULL ได้)
+    if (account_id == null) {
+    return res.status(400).json({ error: 'account_id ต้องไม่ว่าง (ติด FK)' });
+    }
+
+    const [result] = await pool.query(
+      `INSERT INTO Member (full_name, age, phone, birthdate, gender, account_id)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [full_name, age, phone, birthdate ?? null, gender, account_id ?? null]
+    );
+
+    const newId = result.insertId; // ✅ ได้ค่า member_id อัตโนมัติจาก AUTO_INCREMENT
+    const [rows] = await pool.query('SELECT * FROM Member WHERE member_id = ?', [newId]);
+    return res.status(201).json(rows[0] ?? { member_id: newId });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: e.code || 'DB error', message: e.sqlMessage });
+  }
+});
+
+/** PUT /member/:id  (อัปเดตเต็มก้อน) */
+router.put('/:id', async (req, res) => {
+  try {
+    const { full_name, age, phone, birthdate, gender, account_id } = req.body;
+
+    // PUT ต้องส่งครบทุกฟิลด์ที่จำเป็น
+    if ([full_name, age, phone, gender, account_id].some(v => v == null)) {
+      return res.status(400).json({ error: 'full_name, age, phone, gender, account_id ต้องไม่ว่าง' });
+    }
+
+    const [result] = await pool.query(
+      `UPDATE Member
+       SET full_name = ?, age = ?, phone = ?, birthdate = ?, gender = ?, account_id = ?
+       WHERE member_id = ?`,
+      [full_name, age, phone, birthdate ?? null, gender, account_id, req.params.id]
+    );
+
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Not found' });
+
+    const [rows] = await pool.query('SELECT * FROM Member WHERE member_id = ?', [req.params.id]);
+    res.json(rows[0]);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: e.code || 'DB error', message: e.sqlMessage });
+  }
+});
+
+/** PATCH /member/:id  (อัปเดตบางฟิลด์—ทางเลือก เผื่ออยากใช้) */
+router.patch('/:id', async (req, res) => {
+  try {
+    const allowed = ['full_name', 'age', 'phone', 'birthdate', 'gender', 'account_id'];
+    const fields = [];
+    const values = [];
+
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) {
+        fields.push(`${key} = ?`);
+        values.push(req.body[key]);
+      }
+    }
+
+    if (!fields.length) return res.status(400).json({ error: 'ไม่มีฟิลด์ให้อัปเดต' });
+
+    values.push(req.params.id);
+
+    const [result] = await pool.query(
+      `UPDATE Member SET ${fields.join(', ')} WHERE member_id = ?`,
+      values
+    );
+
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Not found' });
+
+    const [rows] = await pool.query('SELECT * FROM Member WHERE member_id = ?', [req.params.id]);
+    res.json(rows[0]);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: e.code || 'DB error', message: e.sqlMessage });
+  }
+});
+
+/** DELETE /member/:id */
+router.delete('/:id', async (req, res) => {
+  try {
+    const [result] = await pool.query('DELETE FROM Member WHERE member_id = ?', [req.params.id]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Not found' });
+    res.json({ deleted: true, id: Number(req.params.id) });
+  } catch (e) {
+    console.error(e);
+    // ถ้าติด Foreign Key (เช่น account อ้างถึง member) จะลบไม่ได้
+    res.status(409).json({ error: e.code || 'FK constraint', message: e.sqlMessage });
+  }
+});
+
+export default router;

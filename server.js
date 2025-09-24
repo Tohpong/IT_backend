@@ -1,0 +1,20 @@
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import memberRouter from './routes/member_routes.js';
+import accountRouter from './routes/account_routes.js';
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+app.use('/member', memberRouter);        // → http://localhost:8000/member
+app.use('/account', accountRouter);    // → http://localhost:8000/account
+
+app.get('/', (req,res)=>res.send('OK'));
+app.use((req,res)=>res.status(404).json({ error:'Not Found', path:req.path }));
+
+const PORT = process.env.PORT || 8000;
+app.listen(PORT, () => {
+  console.log(`API on http://localhost:${PORT}`);
+});

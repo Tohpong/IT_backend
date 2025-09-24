@@ -1,0 +1,11 @@
+node_modules
+# Keep environment variables out of version control
+.env
+
+C:\Users\Boxygen\Desktop\backend2\Test\member_routes.js
+
+C:\Users\Boxygen\Desktop\backend2\controllers\archeived_member_controller.js
+
+C:\Users\Boxygen\Desktop\backend2\routes\archeived_api.js
+
+/generated/prisma

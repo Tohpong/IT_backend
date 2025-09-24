@@ -1,0 +1,125 @@
+// /backend/routes/account_routes.js
+import { Router } from 'express';
+import { pool } from '../lib/db.js';
+
+const router = Router();
+
+/** GET /account  — ทั้งหมด */
+router.get('/', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM `Account`');
+    res.json(rows);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: e.code || 'DB error' });
+  }
+});
+
+/** GET /account/:id — รายตัว */
+router.get('/:id', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM `Account` WHERE `account_id` = ?', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: e.code || 'DB error' });
+  }
+});
+
+/** POST /account — สร้างใหม่ (account_id จะ AUTO_INCREMENT) */
+router.post('/', async (req, res) => {
+  try {
+    const { account_pic = null, username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ error: 'username และ password จำเป็น' });
+    }
+
+    const [result] = await pool.query(
+      'INSERT INTO `Account` (`account_pic`, `username`, `password`) VALUES (?, ?, ?)',
+      [account_pic, username, password]
+    );
+
+    const newId = result.insertId;
+    const [rows] = await pool.query('SELECT * FROM `Account` WHERE `account_id` = ?', [newId]);
+    res.status(201).json(rows[0] ?? { account_id: newId });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: e.code || 'DB error', message: e.sqlMessage });
+  }
+});
+
+/** PUT /account/:id — แทนที่ทั้งระเบียน (ยกเว้น account_id) */
+router.put('/:id', async (req, res) => {
+  try {
+    const { account_pic = null, username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ error: 'username และ password จำเป็น' });
+    }
+
+    const [result] = await pool.query(
+      'UPDATE `Account` SET `account_pic`=?, `username`=?, `password`=? WHERE `account_id`=?',
+      [account_pic, username, password, req.params.id]
+    );
+
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Not found' });
+
+    const [rows] = await pool.query('SELECT * FROM `Account` WHERE `account_id`=?', [req.params.id]);
+    res.json(rows[0]);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: e.code || 'DB error', message: e.sqlMessage });
+  }
+});
+
+/** PATCH /account/:id — อัปเดตบางฟิลด์ (ยกเว้น account_id) */
+router.patch('/:id', async (req, res) => {
+  try {
+    const allowed = ['account_pic', 'username', 'password'];
+    const fields = [];
+    const values = [];
+
+    for (const k of allowed) {
+      if (req.body[k] !== undefined) {
+        fields.push('`' + k + '` = ?');
+        values.push(req.body[k]);
+      }
+    }
+    if (!fields.length) return res.status(400).json({ error: 'ไม่มีฟิลด์ให้อัปเดต' });
+
+    values.push(req.params.id);
+
+    const [result] = await pool.query(
+      `UPDATE \`Account\` SET ${fields.join(', ')} WHERE \`account_id\` = ?`,
+      values
+    );
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Not found' });
+
+    const [rows] = await pool.query('SELECT * FROM `Account` WHERE `account_id`=?', [req.params.id]);
+    res.json(rows[0]);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: e.code || 'DB error', message: e.sqlMessage });
+  }
+});
+
+/** DELETE /account/:id — ลบด้วย account_id */
+router.delete('/:id', async (req, res) => {
+  try {
+    const [result] = await pool.query('DELETE FROM `Account` WHERE `account_id` = ?', [req.params.id]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Not found' });
+    res.json({ deleted: true, id: Number(req.params.id) });
+  } catch (e) {
+    // ถ้าถูกอ้างอิงโดย Member/Course/Trainer (ON DELETE RESTRICT) จะได้ ER_ROW_IS_REFERENCED_2 (1451)
+    if (e.code === 'ER_ROW_IS_REFERENCED_2' || e.errno === 1451) {
+      return res.status(409).json({
+        error: 'FK_CONFLICT',
+        message: 'ลบไม่ได้เพราะมีข้อมูลอื่นอ้างถึงบัญชีนี้ (Member/Course/Trainer)',
+      });
+    }
+    console.error(e);
+    res.status(500).json({ error: e.code || 'DB error', message: e.sqlMessage });
+  }
+});
+
+export default router;
