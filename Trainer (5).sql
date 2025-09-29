@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: db:3306
--- Generation Time: Sep 24, 2025 at 01:36 AM
+-- Generation Time: Sep 29, 2025 at 12:27 PM
 -- Server version: 8.0.43
 -- PHP Version: 8.2.29
 
@@ -41,7 +41,8 @@ CREATE TABLE `Account` (
 INSERT INTO `Account` (`account_id`, `account_pic`, `username`, `password`) VALUES
 (1, NULL, 'Boxygen', 'Boxygen'),
 (2, NULL, 'Teenoi', '123'),
-(3, NULL, 'newuser', '1234');
+(3, NULL, 'newuser', '1234'),
+(4, 'Boxyjung', 'Em', '123');
 
 -- --------------------------------------------------------
 
@@ -62,7 +63,8 @@ CREATE TABLE `Course` (
 --
 
 INSERT INTO `Course` (`course_id`, `course_name`, `img_url`, `date`, `account_id`) VALUES
-(1, 'Swimming', NULL, '2025-09-18 23:45:07.000', 1);
+(1, 'Swimming', NULL, '2025-09-18 23:45:07.000', 1),
+(2, 'Beginner Yoga', 'https://vikasa.com/wp-content/uploads/2024/08/RAW09580-2048x1263.jpg', '2025-09-20 08:00:00.000', 2);
 
 -- --------------------------------------------------------
 
@@ -107,7 +109,8 @@ CREATE TABLE `Trainer` (
 --
 
 INSERT INTO `Trainer` (`trainer_id`, `trainer_fullname`, `trainer_age`, `trainer_date`, `account_id`) VALUES
-(1, 'Teenoi Naja', 30, '2025-09-15 23:48:30.000', 2);
+(1, 'Teenoi Naja', 30, '2025-09-15 23:48:30.000', 2),
+(2, 'Em Yoga', 32, '2025-09-01 06:00:00.000', 4);
 
 -- --------------------------------------------------------
 
@@ -178,13 +181,25 @@ ALTER TABLE `_prisma_migrations`
 -- AUTO_INCREMENT for table `Account`
 --
 ALTER TABLE `Account`
-  MODIFY `account_id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `account_id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+
+--
+-- AUTO_INCREMENT for table `Course`
+--
+ALTER TABLE `Course`
+  MODIFY `course_id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `Member`
 --
 ALTER TABLE `Member`
   MODIFY `member_id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+
+--
+-- AUTO_INCREMENT for table `Trainer`
+--
+ALTER TABLE `Trainer`
+  MODIFY `trainer_id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- Constraints for dumped tables
