@@ -13,8 +13,29 @@ router.get('/', async (req, res) => {
     res.status(500).json({ error: 'DB error' });
   }
 });
-
+/////////////////////////////////////////////////////////////////////
+/*
+// ใน member_routes.js
+router.get('/:id', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT m.*, a.username
+       FROM Member m
+       JOIN Account a ON a.account_id = m.account_id
+       WHERE m.account_id = ?`,
+      [req.params.account_id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Member not found' });
+    res.json(rows[0]);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB error', message: e.sqlMessage });
+  }
+});
+*/
+/////////////////////////////////////////////////////////////////////
 // GET /member/:id  → ดูผู้ใช้รายคน
+
 router.get('/:id', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT member_id, full_name, age, phone, birthdate, gender FROM Member WHERE member_id = ?', [req.params.id]);
@@ -25,6 +46,7 @@ router.get('/:id', async (req, res) => {
     res.status(500).json({ error: 'DB error' });
   }
 });
+
 
 // POST /member  → เพิ่มผู้ใช้ใหม่
 /** POST /member – สร้างสมาชิกใหม่โดยไม่ต้องส่ง member_id */
