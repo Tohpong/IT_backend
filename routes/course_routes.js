@@ -8,9 +8,11 @@ const router = Router();
 router.get('/', async (req, res) => {
   try {
     const [rows] = await pool.query(`
-      SELECT c.*, a.username AS trainer_name
+      SELECT 
+        c.*, 
+        t.trainer_fullname AS trainer_name
       FROM Course c
-      JOIN Account a ON c.account_id = a.account_id
+      LEFT JOIN Trainer t ON c.trainer_id = t.trainer_id
       ORDER BY c.course_id DESC
     `);
     res.json(rows);
@@ -23,12 +25,17 @@ router.get('/', async (req, res) => {
 /** ✅ GET /course/:id - ดึงข้อมูลคอร์สเฉพาะ */
 router.get('/:id', async (req, res) => {
   try {
-    const [rows] = await pool.query(`
-      SELECT c.*, a.username AS trainer_name
+    const [rows] = await pool.query(
+      `
+      SELECT 
+        c.*, 
+        t.trainer_fullname AS trainer_name
       FROM Course c
-      JOIN Account a ON c.account_id = a.account_id
+      LEFT JOIN Trainer t ON c.trainer_id = t.trainer_id
       WHERE c.course_id = ?
-    `, [req.params.id]);
+      `,
+      [req.params.id]
+    );
 
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);
@@ -49,25 +56,29 @@ router.post('/', async (req, res) => {
       level,
       tags,
       duration,
-      account_id
+      trainer_id // optional
     } = req.body;
 
-    // ✅ ตรวจสอบฟิลด์ที่จำเป็น
-    if (!course_name || !description || price == null || !level || !tags || !duration || !account_id) {
+    if (!course_name || !description || price == null || !level || !tags || !duration) {
       return res.status(400).json({
-        error: 'กรุณากรอกข้อมูลให้ครบ: course_name, description, price, level, tags, duration, account_id'
+        error: 'กรุณากรอกข้อมูลให้ครบ: course_name, description, price, level, tags, duration'
       });
     }
 
-    // ✅ เพิ่มข้อมูลใหม่
     const [result] = await pool.query(
       `INSERT INTO Course
-      (course_name, img_url, description, price, level, tags, duration, account_id)
+      (course_name, img_url, description, price, level, tags, duration, trainer_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [course_name, img_url ?? null, description, price, level, tags, duration, account_id]
+      [course_name, img_url ?? null, description, price, level, tags, duration, trainer_id ?? null]
     );
 
-    const [rows] = await pool.query('SELECT * FROM Course WHERE course_id = ?', [result.insertId]);
+    const [rows] = await pool.query(`
+      SELECT c.*, t.trainer_fullname AS trainer_name
+      FROM Course c
+      LEFT JOIN Trainer t ON c.trainer_id = t.trainer_id
+      WHERE c.course_id = ?
+    `, [result.insertId]);
+
     res.status(201).json(rows[0]);
   } catch (e) {
     console.error('❌ Error creating course:', e);
@@ -75,7 +86,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-/** ✅ PUT /course/:id - อัปเดตข้อมูลคอร์สทั้งก้อน */
+/** ✅ PUT /course/:id - อัปเดตข้อมูลคอร์ส */
 router.put('/:id', async (req, res) => {
   try {
     const {
@@ -86,25 +97,31 @@ router.put('/:id', async (req, res) => {
       level,
       tags,
       duration,
-      account_id
+      trainer_id // optional
     } = req.body;
 
-    if (!course_name || !description || price == null || !level || !tags || !duration || !account_id) {
+    if (!course_name || !description || price == null || !level || !tags || !duration) {
       return res.status(400).json({
-        error: 'กรุณากรอกข้อมูลให้ครบ: course_name, description, price, level, tags, duration, account_id'
+        error: 'กรุณากรอกข้อมูลให้ครบ: course_name, description, price, level, tags, duration'
       });
     }
 
     const [result] = await pool.query(
       `UPDATE Course
-       SET course_name=?, img_url=?, description=?, price=?, level=?, tags=?, duration=?, account_id=?
+       SET course_name=?, img_url=?, description=?, price=?, level=?, tags=?, duration=?, trainer_id=?
        WHERE course_id=?`,
-      [course_name, img_url ?? null, description, price, level, tags, duration, account_id, req.params.id]
+      [course_name, img_url ?? null, description, price, level, tags, duration, trainer_id ?? null, req.params.id]
     );
 
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Not found' });
 
-    const [rows] = await pool.query('SELECT * FROM Course WHERE course_id = ?', [req.params.id]);
+    const [rows] = await pool.query(`
+      SELECT c.*, t.trainer_fullname AS trainer_name
+      FROM Course c
+      LEFT JOIN Trainer t ON c.trainer_id = t.trainer_id
+      WHERE c.course_id = ?
+    `, [req.params.id]);
+
     res.json(rows[0]);
   } catch (e) {
     console.error('❌ Error updating course:', e);
@@ -123,7 +140,7 @@ router.patch('/:id', async (req, res) => {
       'level',
       'tags',
       'duration',
-      'account_id'
+      'trainer_id'
     ];
 
     const fields = [];
@@ -149,7 +166,13 @@ router.patch('/:id', async (req, res) => {
 
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Not found' });
 
-    const [rows] = await pool.query('SELECT * FROM Course WHERE course_id = ?', [req.params.id]);
+    const [rows] = await pool.query(`
+      SELECT c.*, t.trainer_fullname AS trainer_name
+      FROM Course c
+      LEFT JOIN Trainer t ON c.trainer_id = t.trainer_id
+      WHERE c.course_id = ?
+    `, [req.params.id]);
+
     res.json(rows[0]);
   } catch (e) {
     console.error('❌ Error patching course:', e);
@@ -164,12 +187,6 @@ router.delete('/:id', async (req, res) => {
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Not found' });
     res.json({ deleted: true, id: Number(req.params.id) });
   } catch (e) {
-    if (e.code === 'ER_ROW_IS_REFERENCED_2' || e.errno === 1451) {
-      return res.status(409).json({
-        error: 'FK_CONFLICT',
-        message: 'ลบไม่ได้เพราะมีข้อมูลอื่นอ้างถึง (เช่น Member หรือ Trainer)',
-      });
-    }
     console.error('❌ Error deleting course:', e);
     res.status(500).json({ error: e.code || 'DB error', message: e.sqlMessage });
   }

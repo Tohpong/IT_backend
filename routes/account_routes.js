@@ -77,8 +77,7 @@ router.post('/login', async (req, res) => {
 router.post('/register', async (req, res) => {
   const conn = await pool.getConnection();
   try {
-    const { username, password, full_name, age, phone, birthdate, gender } =
-      req.body;
+    const { username, password, full_name, email, age, phone, birthdate, gender } = req.body;
 
     if (!username || !password || !full_name) {
       conn.release();
@@ -113,10 +112,9 @@ router.post('/register', async (req, res) => {
     const account_id = resultAccount.insertId;
 
     await conn.query(
-      `INSERT INTO \`Member\`
-        (\`full_name\`, \`age\`, \`phone\`, \`birthdate\`, \`gender\`, \`account_id\`)
-        VALUES (?, ?, ?, ?, ?, ?)`,
-      [full_name, age || 0, phone || '', birthdate || null, gender || '', account_id]
+      `INSERT INTO Member (full_name, email, age, phone, birthdate, gender, account_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [full_name, email || '', age || 0, phone || '', birthdate || null, gender || '', account_id]
     );
 
     await conn.commit();
@@ -274,25 +272,76 @@ router.patch('/:id', async (req, res) => {
 // ✅ DELETE /account/:id — ลบผู้ใช้
 // -----------------------------------------------------------------------------
 router.delete('/:id', async (req, res) => {
+  const accountId = req.params.id;
+
   try {
-    const [result] = await pool.query(
-      'DELETE FROM `Account` WHERE `account_id` = ?',
-      [req.params.id]
-    );
+    // 🔹 เริ่ม Transaction เพื่อให้แน่ใจว่าลบครบทุกตาราง หรือไม่ลบเลยถ้าเกิด error
+    await pool.query('START TRANSACTION');
 
-    if (result.affectedRows === 0)
+    // 1️⃣ ลบข้อมูลที่เกี่ยวข้องใน Member, Course, Trainer ก่อน
+    await pool.query('DELETE FROM Member WHERE account_id = ?', [accountId]);
+    await pool.query('DELETE FROM Course WHERE account_id = ?', [accountId]);
+    await pool.query('DELETE FROM Trainer WHERE account_id = ?', [accountId]);
+
+    // 2️⃣ ลบข้อมูลใน Account หลังสุด
+    const [result] = await pool.query('DELETE FROM Account WHERE account_id = ?', [accountId]);
+
+    // 3️⃣ ตรวจสอบว่ามีแถวถูกลบจริงไหม
+    if (result.affectedRows === 0) {
+      await pool.query('ROLLBACK');
       return res.status(404).json({ error: 'Not found' });
+    }
 
-    res.json({ deleted: true, id: Number(req.params.id) });
+    // ✅ ทุกอย่างผ่าน — commit transaction
+    await pool.query('COMMIT');
+
+    res.json({ deleted: true, id: Number(accountId) });
+
   } catch (e) {
+    // ❌ ถ้ามี error ให้ rollback transaction
+    await pool.query('ROLLBACK');
+
     if (e.code === 'ER_ROW_IS_REFERENCED_2' || e.errno === 1451) {
       return res.status(409).json({
         error: 'FK_CONFLICT',
-        message:
-          'ลบไม่ได้เพราะมีข้อมูลอื่นอ้างถึงบัญชีนี้ (Member/Course/Trainer)',
+        message: 'ลบไม่ได้เพราะมีข้อมูลอื่นอ้างถึงบัญชีนี้ (Member/Course/Trainer)',
       });
     }
+
     console.error('Delete account error:', e);
+    res.status(500).json({ error: e.code || 'DB error', message: e.sqlMessage });
+  }
+});
+
+// ✅ GET /account/profile/:account_id — ดึงข้อมูลโปรไฟล์จาก Account + Member
+router.get('/profile/:account_id', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT 
+         a.account_id,
+         a.username,
+         a.role,
+         a.account_pic,
+         m.member_id,
+         m.full_name,
+         m.email,
+         m.age,
+         m.phone,
+         m.birthdate,
+         m.gender
+       FROM Account a
+       JOIN Member m ON a.account_id = m.account_id
+       WHERE a.account_id = ?`,
+      [req.params.account_id]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ error: 'ไม่พบข้อมูลผู้ใช้' });
+    }
+
+    res.json(rows[0]);
+  } catch (e) {
+    console.error('Get profile error:', e);
     res.status(500).json({ error: e.code || 'DB error', message: e.sqlMessage });
   }
 });

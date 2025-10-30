@@ -59,7 +59,7 @@ router.get('/:id', async (req, res) => {
 
 // POST /member  → เพิ่มผู้ใช้ใหม่ โดยไม่ต้องส่ง member_id , อัปเดตรูปโปรไฟล์ (upload + save to Account)
 // ==============================
-router.post('/upload/:account_id', upload.single('profileImage'), async (req, res) => {
+router.post('/upload/:id', upload.single('profileImage'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'ไม่มีไฟล์ที่อัปโหลด' });
@@ -166,6 +166,28 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// ✅ อัปโหลดรูปโปรไฟล์
+// ✅ วางไว้ก่อน export
+router.post('/upload/:account_id', upload.single('profileImage'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'ไม่มีไฟล์' });
+    const imageUrl = `/uploads/profile/${req.file.filename}`;
+    await pool.query('UPDATE Account SET account_pic = ? WHERE account_id = ?', [imageUrl, req.params.account_id]);
+    res.json({ success: true, imageUrl });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'อัปโหลดไม่สำเร็จ' });
+  }
+});
 
+router.post('/upload/:account_id', upload.single('profileImage'), (req, res) => {
+  console.log('file:', req.file);
+  console.log('body:', req.body);
+
+  if (!req.file) {
+    return res.status(400).json({ error: 'ไม่มีไฟล์ที่อัปโหลด' });
+  }
+  res.json({ success: true, file: req.file });
+});
 
 export default router;

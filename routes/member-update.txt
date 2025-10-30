@@ -1,0 +1,57 @@
+import express from "express";
+import pool from "../config/db.js"; // ปรับ path ตามจริง
+
+const router = express.Router();
+
+// ✅ ดึงข้อมูลสมาชิกทั้งหมด (รวม email)
+router.get("/", async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT member_id, full_name, email, age, phone, birthdate, gender, account_id FROM Member"
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error("Error fetching members:", err);
+    res.status(500).json({ message: "Error fetching members" });
+  }
+});
+
+// ✅ ดึงข้อมูลสมาชิกตาม ID
+router.get("/:id", async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT member_id, full_name, email, age, phone, birthdate, gender, account_id FROM Member WHERE member_id = ?",
+      [req.params.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ message: "Member not found" });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error("Error fetching member:", err);
+    res.status(500).json({ message: "Error fetching member" });
+  }
+});
+
+// ✅ อัปเดตข้อมูลสมาชิก (รวม email)
+router.patch("/:id", async (req, res) => {
+  const { full_name, email, age, phone, birthdate, gender } = req.body;
+
+  try {
+    const [result] = await pool.query(
+      `UPDATE Member 
+       SET full_name = ?, email = ?, age = ?, phone = ?, birthdate = ?, gender = ?
+       WHERE member_id = ?`,
+      [full_name, email, age, phone, birthdate, gender, req.params.id]
+    );
+
+    if (result.affectedRows === 0)
+      return res.status(404).json({ message: "Member not found" });
+
+    const [updated] = await pool.query("SELECT * FROM Member WHERE member_id = ?", [req.params.id]);
+    res.json(updated[0]);
+  } catch (err) {
+    console.error("Error updating member:", err);
+    res.status(500).json({ message: "Error updating member" });
+  }
+});
+
+export default router;
