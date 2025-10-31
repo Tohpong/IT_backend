@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: db:3306
--- Generation Time: Oct 30, 2025 at 05:59 PM
+-- Generation Time: Oct 31, 2025 at 04:07 PM
 -- Server version: 8.0.44
 -- PHP Version: 8.3.27
 
@@ -50,7 +50,9 @@ INSERT INTO `Account` (`account_id`, `account_pic`, `username`, `password`, `rol
 (38, NULL, 'Boxygen4', '$2b$10$3RnELaEcuMBWJczdIP0nKePNEBKUhZ8I2aEHQH5Sd56PJRCiXKPz.', 'user'),
 (39, NULL, 'Not', '$2b$10$TmhokgRtDInipCo9Dnn3ie3aguAZ.qjbbzs8xkUqr3uGLDckpwKkO', 'user'),
 (40, NULL, 'admin', '$2b$10$B.cw1bvmKdDxQhA4UnFo1uNWfidZ9jF9LphDZ/SG7vqmqkmoiYf3O', 'user'),
-(41, NULL, '6521650858', '$2b$10$Ca4PynsHGBpYxLXZ5V0dKuPXoiU176dYMgjwD8GMRGv3IKPJmRr5.', 'user');
+(41, NULL, '6521650858', '$2b$10$Ca4PynsHGBpYxLXZ5V0dKuPXoiU176dYMgjwD8GMRGv3IKPJmRr5.', 'user'),
+(42, NULL, 'b6521650858', '$2b$10$gFgHbZPK22hHsQvOVwbJvuEzpiCkCdjEM6Wy5NZy6uw.IhOdDXpKG', 'user'),
+(43, NULL, 'test01', '$2b$10$vSawfQQqyTUN5GeJORtT0uJ/C4t3Qs8V5wdyUdivOyev4T.NG1Bl2', 'user');
 
 -- --------------------------------------------------------
 
@@ -85,6 +87,37 @@ INSERT INTO `Course` (`course_id`, `course_name`, `img_url`, `description`, `pri
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `Enrollment`
+--
+
+CREATE TABLE `Enrollment` (
+  `enrollment_id` int NOT NULL,
+  `member_id` int NOT NULL,
+  `course_id` int NOT NULL,
+  `enrollment_date` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `experience` varchar(255) DEFAULT NULL,
+  `goal` varchar(255) DEFAULT NULL,
+  `health` text,
+  `payment_method` varchar(100) DEFAULT NULL,
+  `price` int DEFAULT NULL,
+  `status` varchar(50) NOT NULL DEFAULT 'active'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Dumping data for table `Enrollment`
+--
+
+INSERT INTO `Enrollment` (`enrollment_id`, `member_id`, `course_id`, `enrollment_date`, `experience`, `goal`, `health`, `payment_method`, `price`, `status`) VALUES
+(2, 27, 7, '2025-10-31 19:56:24.160', 'beginner', '1234567890', '', 'promptpay', 1700, 'active'),
+(8, 27, 7, '2025-10-31 14:04:10.400', 'novice', 'ลดน้ำหนักตัวเพื่อความเท่', '', 'promptpay', 1700, 'active'),
+(9, 30, 6, '2025-10-31 15:02:47.463', 'intermediate', 'เสริมสร้างความแข็งแรง', '', 'bank_transfer', 1800, 'active'),
+(10, 30, 4, '2025-10-31 15:06:56.175', 'intermediate', '1234567890', '', 'promptpay', 1200, 'active'),
+(12, 30, 7, '2025-10-31 15:11:04.655', 'intermediate', '1234567890', '', 'promptpay', 1700, 'active'),
+(13, 30, 3, '2025-10-31 15:21:12.887', 'beginner', '1234567890', '', 'promptpay', 1500, 'active');
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `Member`
 --
 
@@ -107,12 +140,14 @@ INSERT INTO `Member` (`member_id`, `full_name`, `email`, `age`, `phone`, `birthd
 (21, 'Orapriya Jakrapet', 'orapriya.ja@ku.th', 22, '0812345678', '2003-06-09 00:00:00.000', 'female', 29),
 (22, 'Sakda', 'Sakda@gmail.com', 22, '0123456789', '2003-07-13 00:00:00.000', 'male', 30),
 (26, 'Boxykung', 'boxygen@gmail.com', 0, '0646959634', '2003-09-09 00:00:00.000', 'male', 35),
-(27, 'Tohpong Kijjanulak', 'bank@gmail.com', 22, '0646959634', '2003-09-07 00:00:00.000', 'male', 36),
+(27, 'Tohpong Kijjanulak', 'boxygen@gmail.com', 22, '0646959634', '2003-09-06 00:00:00.000', 'male', 36),
 (28, 'Boxykung', '', 0, '0646959634', '2003-09-09 00:00:00.000', 'male', 37),
 (29, 'Boxykung', 'boxygen@gmail.com', 0, '0646959634', '2003-09-09 00:00:00.000', 'male', 38),
 (30, 'pongamorn', 'pongamorn@gmail.com', 21, '0747474758', '2003-11-23 00:00:00.000', 'male', 39),
 (31, 'Admin', 'admin@admin.com', 0, '0123456789', '2025-10-25 00:00:00.000', 'male', 40),
-(32, 'Tohpong Kijjanulak', 'tohpong.k@ku.th', 22, '1111111111', '2003-09-09 00:00:00.000', 'male', 41);
+(32, 'Tohpong Kijjanulak', 'tohpong.k@ku.th', 22, '1111111111', '2003-09-09 00:00:00.000', 'male', 41),
+(33, 'ต่อพงศ์ กิจจานุลักษ์', 'Sakda@gmail.com', 22, '0646959634', '2003-09-09 00:00:00.000', 'male', 42),
+(34, 'test001', 'test01@gmail.com', 0, '0646959634', '2025-10-31 00:00:00.000', 'male', 43);
 
 -- --------------------------------------------------------
 
@@ -178,6 +213,14 @@ ALTER TABLE `Course`
   ADD KEY `Course_trainer_id_fkey` (`trainer_id`);
 
 --
+-- Indexes for table `Enrollment`
+--
+ALTER TABLE `Enrollment`
+  ADD PRIMARY KEY (`enrollment_id`),
+  ADD KEY `member_id` (`member_id`),
+  ADD KEY `course_id` (`course_id`);
+
+--
 -- Indexes for table `Member`
 --
 ALTER TABLE `Member`
@@ -205,7 +248,7 @@ ALTER TABLE `_prisma_migrations`
 -- AUTO_INCREMENT for table `Account`
 --
 ALTER TABLE `Account`
-  MODIFY `account_id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=42;
+  MODIFY `account_id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=44;
 
 --
 -- AUTO_INCREMENT for table `Course`
@@ -214,10 +257,16 @@ ALTER TABLE `Course`
   MODIFY `course_id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
+-- AUTO_INCREMENT for table `Enrollment`
+--
+ALTER TABLE `Enrollment`
+  MODIFY `enrollment_id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+
+--
 -- AUTO_INCREMENT for table `Member`
 --
 ALTER TABLE `Member`
-  MODIFY `member_id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=33;
+  MODIFY `member_id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=35;
 
 --
 -- AUTO_INCREMENT for table `Trainer`
@@ -234,6 +283,13 @@ ALTER TABLE `Trainer`
 --
 ALTER TABLE `Course`
   ADD CONSTRAINT `Course_trainer_id_fkey` FOREIGN KEY (`trainer_id`) REFERENCES `Trainer` (`trainer_id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+--
+-- Constraints for table `Enrollment`
+--
+ALTER TABLE `Enrollment`
+  ADD CONSTRAINT `Enrollment_ibfk_1` FOREIGN KEY (`member_id`) REFERENCES `Member` (`member_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `Enrollment_ibfk_2` FOREIGN KEY (`course_id`) REFERENCES `Course` (`course_id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `Member`

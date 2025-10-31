@@ -1,3 +1,4 @@
+// /backend/routes/member_routes.js
 import { Router } from 'express';
 import { pool } from '../lib/db.js';
 import multer from 'multer';
@@ -7,7 +8,7 @@ import fs from 'fs';
 const router = Router();
 
 // ==============================
-// ✅ ตั้งค่า Multer สำหรับเก็บไฟล์
+// Multer config for profile uploads
 // ==============================
 const uploadDir = './uploads/profile';
 if (!fs.existsSync(uploadDir)) {
@@ -23,8 +24,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-
-// ✅ GET /member → ดึงผู้ใช้ทั้งหมด
+// GET /member -> all members
 router.get('/', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM Member');
@@ -35,14 +35,13 @@ router.get('/', async (req, res) => {
   }
 });
 
-// ==============================
-// ✅ GET /member/:id → ดึงข้อมูลสมาชิก + account_pic + email
-// ==============================
+// GET /member/:id -> member details (includes experience, goal, health + account info)
 router.get('/:id', async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT 
          m.member_id, m.full_name, m.email, m.age, m.phone, m.birthdate, m.gender,
+         m.experience, m.goal, m.health,
          a.username, a.account_pic
        FROM Member m
        JOIN Account a ON m.account_id = a.account_id
@@ -53,12 +52,11 @@ router.get('/:id', async (req, res) => {
     res.json(rows[0]);
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: 'DB error' });
+    res.status(500).json({ error: 'DB error', message: e.sqlMessage || e.message });
   }
 });
 
-// POST /member  → เพิ่มผู้ใช้ใหม่ โดยไม่ต้องส่ง member_id , อัปเดตรูปโปรไฟล์ (upload + save to Account)
-// ==============================
+// POST /member/upload/:account_id -> upload profile image and save to Account
 router.post('/upload/:account_id', upload.single('profileImage'), async (req, res) => {
   try {
     if (!req.file) {
@@ -86,10 +84,13 @@ router.post('/upload/:account_id', upload.single('profileImage'), async (req, re
   }
 });
 
-/** PUT /member/:id  (อัปเดตเต็มก้อน) */
+/** PUT /member/:id  (replace the member record) */
 router.put('/:id', async (req, res) => {
   try {
-    const { full_name, email, age, phone, birthdate, gender, account_id } = req.body;
+    const {
+      full_name, email, age, phone, birthdate, gender, account_id,
+      experience = null, goal = null, health = null
+    } = req.body;
 
     if ([full_name, age, phone, gender, account_id].some(v => v == null)) {
       return res.status(400).json({ error: 'full_name, age, phone, gender, account_id ต้องไม่ว่าง' });
@@ -97,9 +98,11 @@ router.put('/:id', async (req, res) => {
 
     const [result] = await pool.query(
       `UPDATE Member
-       SET full_name = ?, email = ?, age = ?, phone = ?, birthdate = ?, gender = ?, account_id = ?
+       SET full_name = ?, email = ?, age = ?, phone = ?, birthdate = ?, gender = ?, account_id = ?,
+           experience = ?, goal = ?, health = ?
        WHERE member_id = ?`,
-      [full_name, email ?? null, age, phone, birthdate ?? null, gender, account_id, req.params.id]
+      [full_name, email ?? null, age, phone, birthdate ?? null, gender, account_id,
+       experience, goal, health, req.params.id]
     );
 
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Not found' });
@@ -112,10 +115,10 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// ✅ PATCH /member/:id → อัปเดตฟิลด์ต่าง ๆ รวม email
+// PATCH /member/:id -> partial update including experience/goal/health
 router.patch('/:id', async (req, res) => {
   try {
-    const allowed = ['full_name', 'email', 'age', 'phone', 'birthdate', 'gender', 'account_id'];
+    const allowed = ['full_name', 'email', 'age', 'phone', 'birthdate', 'gender', 'account_id', 'experience', 'goal', 'health'];
     const fields = [];
     const values = [];
 
@@ -140,6 +143,7 @@ router.patch('/:id', async (req, res) => {
     const [rows] = await pool.query(
       `SELECT 
          m.member_id, m.full_name, m.email, m.age, m.phone, m.birthdate, m.gender,
+         m.experience, m.goal, m.health,
          a.username, a.account_pic
        FROM Member m
        JOIN Account a ON m.account_id = a.account_id
@@ -153,7 +157,7 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
-// ✅ DELETE /member/:id
+// DELETE /member/:id
 router.delete('/:id', async (req, res) => {
   try {
     const [result] = await pool.query('DELETE FROM Member WHERE member_id = ?', [req.params.id]);
@@ -161,11 +165,25 @@ router.delete('/:id', async (req, res) => {
     res.json({ deleted: true, id: Number(req.params.id) });
   } catch (e) {
     console.error(e);
-    // ถ้าติด Foreign Key (เช่น account อ้างถึง member) จะลบไม่ได้
     res.status(409).json({ error: e.code || 'FK constraint', message: e.sqlMessage });
   }
 });
 
+/////////////////////
+// ✅ ดึงข้อมูลสมาชิกจาก account_id
+router.get('/by-account/:account_id', async (req, res) => {
+  const { account_id } = req.params;
+  try {
+    const [rows] = await pool.query('SELECT * FROM Member WHERE account_id = ?', [account_id]);
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'ไม่พบข้อมูลสมาชิกของ account_id นี้' });
+    }
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('❌ ดึงข้อมูล Member ผิดพลาด:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
 
-
+/////////////////////
 export default router;
