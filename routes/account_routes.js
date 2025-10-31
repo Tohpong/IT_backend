@@ -3,18 +3,31 @@ import { pool } from '../lib/db.js';
 import bcrypt from 'bcryptjs';
 
 const router = Router();
-
-// -----------------------------------------------------------------------------
-// ✅ GET /account — ดึงข้อมูลทั้งหมด
-// -----------------------------------------------------------------------------
 router.get('/', async (req, res) => {
   try {
     const [rows] = await pool.query(
-      'SELECT account_id, username, email, role, account_pic FROM `Account`'
+      'SELECT account_id, username, role, account_pic FROM `Account`'
     );
     res.json(rows);
   } catch (e) {
     console.error('Get all accounts error:', e);
+    res.status(500).json({ error: e.code || 'DB error' });
+  }
+});
+
+// -----------------------------------------------------------------------------
+// ✅ GET /account/:id — ดึงข้อมูลรายบุคคล
+// -----------------------------------------------------------------------------
+router.get('/:id', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT account_id, username, role, account_pic FROM `Account` WHERE `account_id` = ?',
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (e) {
+    console.error('Get account by id error:', e);
     res.status(500).json({ error: e.code || 'DB error' });
   }
 });
@@ -136,22 +149,6 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// -----------------------------------------------------------------------------
-// ✅ GET /account/:id — ดึงข้อมูลรายบุคคล
-// -----------------------------------------------------------------------------
-router.get('/:id', async (req, res) => {
-  try {
-    const [rows] = await pool.query(
-      'SELECT account_id, username, email, role, account_pic FROM `Account` WHERE `account_id` = ?',
-      [req.params.id]
-    );
-    if (!rows.length) return res.status(404).json({ error: 'Not found' });
-    res.json(rows[0]);
-  } catch (e) {
-    console.error('Get account by id error:', e);
-    res.status(500).json({ error: e.code || 'DB error' });
-  }
-});
 
 // -----------------------------------------------------------------------------
 // ✅ POST /account — สร้างบัญชีใหม่ (Admin ใช้สร้าง)
@@ -269,49 +266,156 @@ router.patch('/:id', async (req, res) => {
 });
 
 // -----------------------------------------------------------------------------
+// ✅ POST /account — สร้างบัญชีใหม่ (Admin ใช้สร้าง)
+// -----------------------------------------------------------------------------
+router.post('/', async (req, res) => {
+  try {
+    const { account_pic = null, username, password, role = 'user' } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ error: 'username และ password จำเป็น' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const [result] = await pool.query(
+      'INSERT INTO `Account` (`account_pic`, `username`, `password`, `role`) VALUES (?, ?, ?, ?)',
+      [account_pic, username, hashedPassword, role]
+    );
+
+    const newId = result.insertId;
+    const [rows] = await pool.query(
+      'SELECT account_id, username, role, account_pic FROM `Account` WHERE `account_id` = ?',
+      [newId]
+    );
+    res.status(201).json(rows[0]);
+  } catch (e) {
+    console.error('Create account error:', e);
+    res.status(500).json({ error: e.code || 'DB error', message: e.sqlMessage });
+  }
+});
+
+// -----------------------------------------------------------------------------
+// ✅ PUT /account/:id — แก้ไขข้อมูลทั้งหมด
+// -----------------------------------------------------------------------------
+router.put('/:id', async (req, res) => {
+  try {
+    const { account_pic = null, username, password, role = 'user' } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ error: 'username และ password จำเป็น' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const [result] = await pool.query(
+      'UPDATE `Account` SET `account_pic`=?, `username`=?, `password`=?, `role`=? WHERE `account_id`=?',
+      [account_pic, username, hashedPassword, role, req.params.id]
+    );
+
+    if (result.affectedRows === 0)
+      return res.status(404).json({ error: 'Not found' });
+
+    const [rows] = await pool.query(
+      'SELECT account_id, username, role, account_pic FROM `Account` WHERE `account_id`=?',
+      [req.params.id]
+    );
+    res.json(rows[0]);
+  } catch (e) {
+    console.error('Update account error:', e);
+    res.status(500).json({ error: e.code || 'DB error', message: e.sqlMessage });
+  }
+});
+
+// -----------------------------------------------------------------------------
+// ✅ PATCH /account/:id — อัปเดตบางฟิลด์
+// -----------------------------------------------------------------------------
+router.patch('/:id', async (req, res) => {
+  try {
+    const allowed = ['account_pic', 'username', 'password', 'role'];
+    const fields = [];
+    const values = [];
+
+    for (const k of allowed) {
+      if (req.body[k] !== undefined) {
+        if (k === 'password') {
+          const hashed = await bcrypt.hash(req.body[k], 10);
+          fields.push('`password` = ?');
+          values.push(hashed);
+        } else {
+          fields.push('`' + k + '` = ?');
+          values.push(req.body[k]);
+        }
+      }
+    }
+
+    if (!fields.length)
+      return res.status(400).json({ error: 'ไม่มีฟิลด์ให้อัปเดต' });
+
+    values.push(req.params.id);
+
+    const [result] = await pool.query(
+      `UPDATE \`Account\` SET ${fields.join(', ')} WHERE \`account_id\` = ?`,
+      values
+    );
+
+    if (result.affectedRows === 0)
+      return res.status(404).json({ error: 'Not found' });
+
+    const [rows] = await pool.query(
+      'SELECT account_id, username, role, account_pic FROM `Account` WHERE `account_id`=?',
+      [req.params.id]
+    );
+    res.json(rows[0]);
+  } catch (e) {
+    console.error('Patch account error:', e);
+    res.status(500).json({ error: e.code || 'DB error', message: e.sqlMessage });
+  }
+});
+
+// -----------------------------------------------------------------------------
 // ✅ DELETE /account/:id — ลบผู้ใช้
 // -----------------------------------------------------------------------------
 router.delete('/:id', async (req, res) => {
   const accountId = req.params.id;
 
   try {
-    // 🔹 เริ่ม Transaction เพื่อให้แน่ใจว่าลบครบทุกตาราง หรือไม่ลบเลยถ้าเกิด error
     await pool.query('START TRANSACTION');
 
-    // 1️⃣ ลบข้อมูลที่เกี่ยวข้องใน Member, Course, Trainer ก่อน
+    // ลบข้อมูลที่เกี่ยวข้อง
     await pool.query('DELETE FROM Member WHERE account_id = ?', [accountId]);
-    await pool.query('DELETE FROM Course WHERE account_id = ?', [accountId]);
+    await pool.query(`
+      DELETE c FROM Course c
+      JOIN Trainer t ON c.trainer_id = t.trainer_id
+      WHERE t.account_id = ?
+    `, [accountId]);
     await pool.query('DELETE FROM Trainer WHERE account_id = ?', [accountId]);
 
-    // 2️⃣ ลบข้อมูลใน Account หลังสุด
-    const [result] = await pool.query('DELETE FROM Account WHERE account_id = ?', [accountId]);
+    const [result] = await pool.query(
+      'DELETE FROM Account WHERE account_id = ?',
+      [accountId]
+    );
 
-    // 3️⃣ ตรวจสอบว่ามีแถวถูกลบจริงไหม
     if (result.affectedRows === 0) {
       await pool.query('ROLLBACK');
       return res.status(404).json({ error: 'Not found' });
     }
 
-    // ✅ ทุกอย่างผ่าน — commit transaction
     await pool.query('COMMIT');
-
     res.json({ deleted: true, id: Number(accountId) });
 
   } catch (e) {
-    // ❌ ถ้ามี error ให้ rollback transaction
     await pool.query('ROLLBACK');
-
     if (e.code === 'ER_ROW_IS_REFERENCED_2' || e.errno === 1451) {
       return res.status(409).json({
         error: 'FK_CONFLICT',
         message: 'ลบไม่ได้เพราะมีข้อมูลอื่นอ้างถึงบัญชีนี้ (Member/Course/Trainer)',
       });
     }
-
     console.error('Delete account error:', e);
     res.status(500).json({ error: e.code || 'DB error', message: e.sqlMessage });
   }
 });
+
+
 
 // ✅ GET /account/profile/:account_id — ดึงข้อมูลโปรไฟล์จาก Account + Member
 router.get('/profile/:account_id', async (req, res) => {
