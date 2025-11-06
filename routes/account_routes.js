@@ -6,7 +6,7 @@ const router = Router();
 router.get('/', async (req, res) => {
   try {
     const [rows] = await pool.query(
-      'SELECT account_id, username, role, account_pic FROM `Account`'
+      'SELECT account_id, username, role FROM `Account`'
     );
     res.json(rows);
   } catch (e) {
@@ -21,7 +21,7 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const [rows] = await pool.query(
-      'SELECT account_id, username, role, account_pic FROM `Account` WHERE `account_id` = ?',
+      'SELECT account_id, username, role FROM `Account` WHERE `account_id` = ?',
       [req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
@@ -155,7 +155,7 @@ router.post('/register', async (req, res) => {
 // -----------------------------------------------------------------------------
 router.post('/', async (req, res) => {
   try {
-    const { account_pic = null, username, password, email = '', role = 'user' } =
+    const { username, password, email = '', role = 'user' } =
       req.body;
 
     if (!username || !password) {
@@ -165,13 +165,13 @@ router.post('/', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const [result] = await pool.query(
-      'INSERT INTO `Account` (`account_pic`, `username`, `password`, `email`, `role`) VALUES (?, ?, ?, ?, ?)',
+      'INSERT INTO `Account` (`username`, `password`, `email`, `role`) VALUES (?, ?, ?, ?, ?)',
       [account_pic, username, hashedPassword, email, role]
     );
 
     const newId = result.insertId;
     const [rows] = await pool.query(
-      'SELECT account_id, username, email, role, account_pic FROM `Account` WHERE `account_id` = ?',
+      'SELECT account_id, username, email, role FROM `Account` WHERE `account_id` = ?',
       [newId]
     );
     res.status(201).json(rows[0]);
@@ -187,7 +187,6 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const {
-      account_pic = null,
       username,
       password,
       email = '',
@@ -201,7 +200,7 @@ router.put('/:id', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const [result] = await pool.query(
-      'UPDATE `Account` SET `account_pic`=?, `username`=?, `password`=?, `email`=?, `role`=? WHERE `account_id`=?',
+      'UPDATE `Account` SET `username`=?, `password`=?, `email`=?, `role`=? WHERE `account_id`=?',
       [account_pic, username, hashedPassword, email, role, req.params.id]
     );
 
@@ -209,7 +208,7 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Not found' });
 
     const [rows] = await pool.query(
-      'SELECT account_id, username, email, role, account_pic FROM `Account` WHERE `account_id`=?',
+      'SELECT account_id, username, email, role FROM `Account` WHERE `account_id`=?',
       [req.params.id]
     );
     res.json(rows[0]);
@@ -224,7 +223,7 @@ router.put('/:id', async (req, res) => {
 // -----------------------------------------------------------------------------
 router.patch('/:id', async (req, res) => {
   try {
-    const allowed = ['account_pic', 'username', 'password', 'email', 'role'];
+    const allowed = ['username', 'password', 'email', 'role'];
     const fields = [];
     const values = [];
 
@@ -255,7 +254,7 @@ router.patch('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Not found' });
 
     const [rows] = await pool.query(
-      'SELECT account_id, username, email, role, account_pic FROM `Account` WHERE `account_id`=?',
+      'SELECT account_id, username, email, role FROM `Account` WHERE `account_id`=?',
       [req.params.id]
     );
     res.json(rows[0]);
@@ -270,7 +269,7 @@ router.patch('/:id', async (req, res) => {
 // -----------------------------------------------------------------------------
 router.post('/', async (req, res) => {
   try {
-    const { account_pic = null, username, password, role = 'user' } = req.body;
+    const { username, password, role = 'user' } = req.body;
 
     if (!username || !password) {
       return res.status(400).json({ error: 'username และ password จำเป็น' });
@@ -279,13 +278,13 @@ router.post('/', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const [result] = await pool.query(
-      'INSERT INTO `Account` (`account_pic`, `username`, `password`, `role`) VALUES (?, ?, ?, ?)',
+      'INSERT INTO `Account` (`username`, `password`, `role`) VALUES (?, ?, ?, ?)',
       [account_pic, username, hashedPassword, role]
     );
 
     const newId = result.insertId;
     const [rows] = await pool.query(
-      'SELECT account_id, username, role, account_pic FROM `Account` WHERE `account_id` = ?',
+      'SELECT account_id, username, role FROM `Account` WHERE `account_id` = ?',
       [newId]
     );
     res.status(201).json(rows[0]);
@@ -300,14 +299,14 @@ router.post('/', async (req, res) => {
 // -----------------------------------------------------------------------------
 router.put('/:id', async (req, res) => {
   try {
-    const { account_pic = null, username, password, role = 'user' } = req.body;
+    const { username, password, role = 'user' } = req.body;
     if (!username || !password) {
       return res.status(400).json({ error: 'username และ password จำเป็น' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const [result] = await pool.query(
-      'UPDATE `Account` SET `account_pic`=?, `username`=?, `password`=?, `role`=? WHERE `account_id`=?',
+      'UPDATE `Account` SET `username`=?, `password`=?, `role`=? WHERE `account_id`=?',
       [account_pic, username, hashedPassword, role, req.params.id]
     );
 
@@ -315,7 +314,7 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Not found' });
 
     const [rows] = await pool.query(
-      'SELECT account_id, username, role, account_pic FROM `Account` WHERE `account_id`=?',
+      'SELECT account_id, username, role FROM `Account` WHERE `account_id`=?',
       [req.params.id]
     );
     res.json(rows[0]);
@@ -330,7 +329,7 @@ router.put('/:id', async (req, res) => {
 // -----------------------------------------------------------------------------
 router.patch('/:id', async (req, res) => {
   try {
-    const allowed = ['account_pic', 'username', 'password', 'role'];
+    const allowed = ['username', 'password', 'role'];
     const fields = [];
     const values = [];
 
@@ -361,7 +360,7 @@ router.patch('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Not found' });
 
     const [rows] = await pool.query(
-      'SELECT account_id, username, role, account_pic FROM `Account` WHERE `account_id`=?',
+      'SELECT account_id, username, role FROM `Account` WHERE `account_id`=?',
       [req.params.id]
     );
     res.json(rows[0]);
@@ -425,7 +424,6 @@ router.get('/profile/:account_id', async (req, res) => {
          a.account_id,
          a.username,
          a.role,
-         a.account_pic,
          m.member_id,
          m.full_name,
          m.email,
