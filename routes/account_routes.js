@@ -3,10 +3,14 @@ import { pool } from '../lib/db.js';
 import bcrypt from 'bcryptjs';
 
 const router = Router();
+
+// -----------------------------------------------------------------------------
+// ✅ GET /account — ดึงข้อมูลผู้ใช้ทั้งหมด
+// -----------------------------------------------------------------------------
 router.get('/', async (req, res) => {
   try {
     const [rows] = await pool.query(
-      'SELECT account_id, username, role FROM `Account`'
+      'SELECT account_id, username, role FROM Account'
     );
     res.json(rows);
   } catch (e) {
@@ -21,7 +25,7 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const [rows] = await pool.query(
-      'SELECT account_id, username, role FROM `Account` WHERE `account_id` = ?',
+      'SELECT account_id, username, role FROM Account WHERE account_id = ?',
       [req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
@@ -33,7 +37,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // -----------------------------------------------------------------------------
-// ✅ LOGIN — เข้าสู่ระบบ
+// ✅ POST /account/login — เข้าสู่ระบบ
 // -----------------------------------------------------------------------------
 router.post('/login', async (req, res) => {
   try {
@@ -47,7 +51,7 @@ router.post('/login', async (req, res) => {
     }
 
     const [rows] = await pool.query(
-      'SELECT * FROM `Account` WHERE `username` = ?',
+      'SELECT * FROM Account WHERE username = ?',
       [username]
     );
 
@@ -85,7 +89,7 @@ router.post('/login', async (req, res) => {
 });
 
 // -----------------------------------------------------------------------------
-// ✅ REGISTER — สมัครสมาชิกใหม่ (Account + Member)
+// ✅ POST /account/register — สมัครสมาชิกใหม่ (Account + Member)
 // -----------------------------------------------------------------------------
 router.post('/register', async (req, res) => {
   const conn = await pool.getConnection();
@@ -101,7 +105,7 @@ router.post('/register', async (req, res) => {
     }
 
     const [exists] = await conn.query(
-      'SELECT * FROM `Account` WHERE `username` = ?',
+      'SELECT * FROM Account WHERE username = ?',
       [username]
     );
     if (exists.length > 0) {
@@ -114,19 +118,18 @@ router.post('/register', async (req, res) => {
 
     await conn.beginTransaction();
 
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const [resultAccount] = await conn.query(
-      'INSERT INTO `Account` (`username`, `password`, `role`) VALUES (?, ?, ?)',
-      [username, hashedPassword, 'user'] // default role
+      'INSERT INTO Account (username, password, role) VALUES (?, ?, ?)',
+      [username, hashedPassword, 'user']
     );
 
     const account_id = resultAccount.insertId;
 
     await conn.query(
       `INSERT INTO Member (full_name, email, age, phone, birthdate, gender, account_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [full_name, email || '', age || 0, phone || '', birthdate || null, gender || '', account_id]
     );
 
@@ -149,14 +152,12 @@ router.post('/register', async (req, res) => {
   }
 });
 
-
 // -----------------------------------------------------------------------------
-// ✅ POST /account — สร้างบัญชีใหม่ (Admin ใช้สร้าง)
+// ✅ POST /account — เพิ่มผู้ใช้ใหม่ (Admin ใช้สร้าง)
 // -----------------------------------------------------------------------------
 router.post('/', async (req, res) => {
   try {
-    const { username, password, email = '', role = 'user' } =
-      req.body;
+    const { username, password, email = '', role = 'user' } = req.body;
 
     if (!username || !password) {
       return res.status(400).json({ error: 'username และ password จำเป็น' });
@@ -165,13 +166,13 @@ router.post('/', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const [result] = await pool.query(
-      'INSERT INTO `Account` (`username`, `password`, `email`, `role`) VALUES (?, ?, ?, ?, ?)',
-      [account_pic, username, hashedPassword, email, role]
+      'INSERT INTO Account (username, password, email, role) VALUES (?, ?, ?, ?)',
+      [username, hashedPassword, email, role]
     );
 
     const newId = result.insertId;
     const [rows] = await pool.query(
-      'SELECT account_id, username, email, role FROM `Account` WHERE `account_id` = ?',
+      'SELECT account_id, username, email, role FROM Account WHERE account_id = ?',
       [newId]
     );
     res.status(201).json(rows[0]);
@@ -182,16 +183,11 @@ router.post('/', async (req, res) => {
 });
 
 // -----------------------------------------------------------------------------
-// ✅ PUT /account/:id — แก้ไขข้อมูลทั้งหมด (แทนที่ทั้งระเบียน)
+// ✅ PUT /account/:id — แก้ไขข้อมูลผู้ใช้
 // -----------------------------------------------------------------------------
 router.put('/:id', async (req, res) => {
   try {
-    const {
-      username,
-      password,
-      email = '',
-      role = 'user',
-    } = req.body;
+    const { username, password, email = '', role = 'user' } = req.body;
 
     if (!username || !password) {
       return res.status(400).json({ error: 'username และ password จำเป็น' });
@@ -200,15 +196,15 @@ router.put('/:id', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const [result] = await pool.query(
-      'UPDATE `Account` SET `username`=?, `password`=?, `email`=?, `role`=? WHERE `account_id`=?',
-      [account_pic, username, hashedPassword, email, role, req.params.id]
+      'UPDATE Account SET username=?, password=?, email=?, role=? WHERE account_id=?',
+      [username, hashedPassword, email, role, req.params.id]
     );
 
     if (result.affectedRows === 0)
       return res.status(404).json({ error: 'Not found' });
 
     const [rows] = await pool.query(
-      'SELECT account_id, username, email, role FROM `Account` WHERE `account_id`=?',
+      'SELECT account_id, username, email, role FROM Account WHERE account_id=?',
       [req.params.id]
     );
     res.json(rows[0]);
@@ -231,10 +227,10 @@ router.patch('/:id', async (req, res) => {
       if (req.body[k] !== undefined) {
         if (k === 'password') {
           const hashed = await bcrypt.hash(req.body[k], 10);
-          fields.push('`password` = ?');
+          fields.push('password = ?');
           values.push(hashed);
         } else {
-          fields.push('`' + k + '` = ?');
+          fields.push(`${k} = ?`);
           values.push(req.body[k]);
         }
       }
@@ -246,7 +242,7 @@ router.patch('/:id', async (req, res) => {
     values.push(req.params.id);
 
     const [result] = await pool.query(
-      `UPDATE \`Account\` SET ${fields.join(', ')} WHERE \`account_id\` = ?`,
+      `UPDATE Account SET ${fields.join(', ')} WHERE account_id = ?`,
       values
     );
 
@@ -254,7 +250,7 @@ router.patch('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Not found' });
 
     const [rows] = await pool.query(
-      'SELECT account_id, username, email, role FROM `Account` WHERE `account_id`=?',
+      'SELECT account_id, username, email, role FROM Account WHERE account_id=?',
       [req.params.id]
     );
     res.json(rows[0]);
@@ -265,158 +261,54 @@ router.patch('/:id', async (req, res) => {
 });
 
 // -----------------------------------------------------------------------------
-// ✅ POST /account — สร้างบัญชีใหม่ (Admin ใช้สร้าง)
-// -----------------------------------------------------------------------------
-router.post('/', async (req, res) => {
-  try {
-    const { username, password, role = 'user' } = req.body;
-
-    if (!username || !password) {
-      return res.status(400).json({ error: 'username และ password จำเป็น' });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const [result] = await pool.query(
-      'INSERT INTO `Account` (`username`, `password`, `role`) VALUES (?, ?, ?, ?)',
-      [account_pic, username, hashedPassword, role]
-    );
-
-    const newId = result.insertId;
-    const [rows] = await pool.query(
-      'SELECT account_id, username, role FROM `Account` WHERE `account_id` = ?',
-      [newId]
-    );
-    res.status(201).json(rows[0]);
-  } catch (e) {
-    console.error('Create account error:', e);
-    res.status(500).json({ error: e.code || 'DB error', message: e.sqlMessage });
-  }
-});
-
-// -----------------------------------------------------------------------------
-// ✅ PUT /account/:id — แก้ไขข้อมูลทั้งหมด
-// -----------------------------------------------------------------------------
-router.put('/:id', async (req, res) => {
-  try {
-    const { username, password, role = 'user' } = req.body;
-    if (!username || !password) {
-      return res.status(400).json({ error: 'username และ password จำเป็น' });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const [result] = await pool.query(
-      'UPDATE `Account` SET `username`=?, `password`=?, `role`=? WHERE `account_id`=?',
-      [account_pic, username, hashedPassword, role, req.params.id]
-    );
-
-    if (result.affectedRows === 0)
-      return res.status(404).json({ error: 'Not found' });
-
-    const [rows] = await pool.query(
-      'SELECT account_id, username, role FROM `Account` WHERE `account_id`=?',
-      [req.params.id]
-    );
-    res.json(rows[0]);
-  } catch (e) {
-    console.error('Update account error:', e);
-    res.status(500).json({ error: e.code || 'DB error', message: e.sqlMessage });
-  }
-});
-
-// -----------------------------------------------------------------------------
-// ✅ PATCH /account/:id — อัปเดตบางฟิลด์
-// -----------------------------------------------------------------------------
-router.patch('/:id', async (req, res) => {
-  try {
-    const allowed = ['username', 'password', 'role'];
-    const fields = [];
-    const values = [];
-
-    for (const k of allowed) {
-      if (req.body[k] !== undefined) {
-        if (k === 'password') {
-          const hashed = await bcrypt.hash(req.body[k], 10);
-          fields.push('`password` = ?');
-          values.push(hashed);
-        } else {
-          fields.push('`' + k + '` = ?');
-          values.push(req.body[k]);
-        }
-      }
-    }
-
-    if (!fields.length)
-      return res.status(400).json({ error: 'ไม่มีฟิลด์ให้อัปเดต' });
-
-    values.push(req.params.id);
-
-    const [result] = await pool.query(
-      `UPDATE \`Account\` SET ${fields.join(', ')} WHERE \`account_id\` = ?`,
-      values
-    );
-
-    if (result.affectedRows === 0)
-      return res.status(404).json({ error: 'Not found' });
-
-    const [rows] = await pool.query(
-      'SELECT account_id, username, role FROM `Account` WHERE `account_id`=?',
-      [req.params.id]
-    );
-    res.json(rows[0]);
-  } catch (e) {
-    console.error('Patch account error:', e);
-    res.status(500).json({ error: e.code || 'DB error', message: e.sqlMessage });
-  }
-});
-
-// -----------------------------------------------------------------------------
-// ✅ DELETE /account/:id — ลบผู้ใช้
+// ✅ DELETE /account/:id — ลบบัญชีและข้อมูลที่เกี่ยวข้อง
 // -----------------------------------------------------------------------------
 router.delete('/:id', async (req, res) => {
   const accountId = req.params.id;
+  const conn = await pool.getConnection();
 
   try {
-    await pool.query('START TRANSACTION');
+    await conn.beginTransaction();
 
-    // ลบข้อมูลที่เกี่ยวข้อง
-    await pool.query('DELETE FROM Member WHERE account_id = ?', [accountId]);
-    await pool.query(`
-      DELETE c FROM Course c
-      JOIN Trainer t ON c.trainer_id = t.trainer_id
-      WHERE t.account_id = ?
-    `, [accountId]);
-    await pool.query('DELETE FROM Trainer WHERE account_id = ?', [accountId]);
+    await conn.query('DELETE FROM Member WHERE account_id = ?', [accountId]);
+    await conn.query(
+      `DELETE c FROM Course c
+       JOIN Trainer t ON c.trainer_id = t.trainer_id
+       WHERE t.account_id = ?`,
+      [accountId]
+    );
+    await conn.query('DELETE FROM Trainer WHERE account_id = ?', [accountId]);
 
-    const [result] = await pool.query(
+    const [result] = await conn.query(
       'DELETE FROM Account WHERE account_id = ?',
       [accountId]
     );
 
     if (result.affectedRows === 0) {
-      await pool.query('ROLLBACK');
+      await conn.rollback();
       return res.status(404).json({ error: 'Not found' });
     }
 
-    await pool.query('COMMIT');
+    await conn.commit();
     res.json({ deleted: true, id: Number(accountId) });
-
   } catch (e) {
-    await pool.query('ROLLBACK');
+    await conn.rollback();
+    console.error('Delete account error:', e);
     if (e.code === 'ER_ROW_IS_REFERENCED_2' || e.errno === 1451) {
       return res.status(409).json({
         error: 'FK_CONFLICT',
-        message: 'ลบไม่ได้เพราะมีข้อมูลอื่นอ้างถึงบัญชีนี้ (Member/Course/Trainer)',
+        message: 'ลบไม่ได้เพราะมีข้อมูลอื่นอ้างถึงบัญชีนี้',
       });
     }
-    console.error('Delete account error:', e);
     res.status(500).json({ error: e.code || 'DB error', message: e.sqlMessage });
+  } finally {
+    conn.release();
   }
 });
 
-
-
-// ✅ GET /account/profile/:account_id — ดึงข้อมูลโปรไฟล์จาก Account + Member
+// -----------------------------------------------------------------------------
+// ✅ GET /account/profile/:account_id — ข้อมูลโปรไฟล์ผู้ใช้ (Account + Member)
+// -----------------------------------------------------------------------------
 router.get('/profile/:account_id', async (req, res) => {
   try {
     const [rows] = await pool.query(
