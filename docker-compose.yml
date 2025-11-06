@@ -1,32 +1,21 @@
-services:
-  db:
-    image: mysql:8.0
-    container_name: mysql-db
-    environment:
-      MYSQL_ROOT_PASSWORD: 123456
-      MYSQL_DATABASE: Trainer
-      MYSQL_USER: app          # ผู้ใช้สำหรับแอป (อย่าใช้ root)
-      MYSQL_PASSWORD: 1234
-      MYSQL_ROOT_HOST: '%'
-    ports:
-      - "3307:3306"            # Host:3307 -> Container:3306
-    volumes:
-      - db-data:/var/lib/mysql
-    networks: [backend]
+version: '3.8'
 
+services:
   phpmyadmin:
     image: phpmyadmin:latest
     container_name: pma
-    depends_on: [db]
+    restart: always
     environment:
-      PMA_HOST: db
-      PMA_PORT: 3306
+      PMA_HOST: shuttle.proxy.rlwy.net        # Host จาก Railway
+      PMA_PORT: 56195                         # Port จาก Railway
+      PMA_USER: root                          # Username จาก Railway
+      PMA_PASSWORD: ODkkOkzGVaawNrquGvBLQcJWKTPLAZTX   # Password จาก Railway
+      PMA_ABSOLUTE_URI: http://localhost:8080/
+      UPLOAD_LIMIT: 64M                       # อนุญาตให้อัปโหลดไฟล์ .sql ขนาดใหญ่
     ports:
-      - "8080:80"              # เปิดที่ http://localhost:8080
-    networks: [backend]
+      - "8080:80"                             # เปิด phpMyAdmin ที่ http://localhost:8080
+    networks:
+      - backend
 
 networks:
   backend:
-
-volumes:
-  db-data:
