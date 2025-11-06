@@ -24,7 +24,9 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
+// ==============================
 // GET /member -> all members
+// ==============================
 router.get('/', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM Member');
@@ -35,19 +37,23 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /member/:id -> member details (includes experience, goal, health + account info)
+// ==============================
+// GET /member/:id -> member details (JOIN Enrollment + Account)
+// ==============================
 router.get('/:id', async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT 
          m.member_id, m.full_name, m.email, m.age, m.phone, m.birthdate, m.gender,
-         m.experience, m.goal, m.health,
+         e.experience, e.goal, e.health,
          a.username, a.account_pic
        FROM Member m
        JOIN Account a ON m.account_id = a.account_id
+       LEFT JOIN Enrollment e ON m.member_id = e.member_id
        WHERE m.member_id = ?`,
       [req.params.id]
     );
+
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);
   } catch (e) {
@@ -56,7 +62,9 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /member/upload/:account_id -> upload profile image and save to Account
+// ==============================
+// POST /member/upload/:account_id -> upload profile image
+// ==============================
 router.post('/upload/:account_id', upload.single('profileImage'), async (req, res) => {
   try {
     if (!req.file) {
@@ -84,7 +92,9 @@ router.post('/upload/:account_id', upload.single('profileImage'), async (req, re
   }
 });
 
-/** PUT /member/:id  (replace the member record) */
+// ==============================
+// PUT /member/:id -> update Member + Enrollment
+// ==============================
 router.put('/:id', async (req, res) => {
   try {
     const {
@@ -96,68 +106,109 @@ router.put('/:id', async (req, res) => {
       return res.status(400).json({ error: 'full_name, age, phone, gender, account_id ต้องไม่ว่าง' });
     }
 
-    const [result] = await pool.query(
+    // update Member info
+    await pool.query(
       `UPDATE Member
-       SET full_name = ?, email = ?, age = ?, phone = ?, birthdate = ?, gender = ?, account_id = ?,
-           experience = ?, goal = ?, health = ?
+       SET full_name = ?, email = ?, age = ?, phone = ?, birthdate = ?, gender = ?, account_id = ?
        WHERE member_id = ?`,
-      [full_name, email ?? null, age, phone, birthdate ?? null, gender, account_id,
-       experience, goal, health, req.params.id]
+      [full_name, email ?? null, age, phone, birthdate ?? null, gender, account_id, req.params.id]
     );
 
-    if (result.affectedRows === 0) return res.status(404).json({ error: 'Not found' });
+    // update Enrollment info (ถ้ามี)
+    await pool.query(
+      `UPDATE Enrollment
+       SET experience = ?, goal = ?, health = ?
+       WHERE member_id = ?`,
+      [experience, goal, health, req.params.id]
+    );
 
-    const [rows] = await pool.query('SELECT * FROM Member WHERE member_id = ?', [req.params.id]);
+    // ดึงข้อมูลกลับ
+    const [rows] = await pool.query(
+      `SELECT 
+         m.member_id, m.full_name, m.email, m.age, m.phone, m.birthdate, m.gender,
+         e.experience, e.goal, e.health,
+         a.username, a.account_pic
+       FROM Member m
+       JOIN Account a ON m.account_id = a.account_id
+       LEFT JOIN Enrollment e ON m.member_id = e.member_id
+       WHERE m.member_id = ?`,
+      [req.params.id]
+    );
+
     res.json(rows[0]);
   } catch (e) {
-    console.error(e);
+    console.error('PUT member error:', e);
     res.status(500).json({ error: e.code || 'DB error', message: e.sqlMessage });
   }
 });
 
-// PATCH /member/:id -> partial update including experience/goal/health
+// ==============================
+// PATCH /member/:id -> partial update
+// ==============================
 router.patch('/:id', async (req, res) => {
   try {
-    const allowed = ['full_name', 'email', 'age', 'phone', 'birthdate', 'gender', 'account_id', 'experience', 'goal', 'health'];
-    const fields = [];
-    const values = [];
+    const allowedMember = ['full_name', 'email', 'age', 'phone', 'birthdate', 'gender', 'account_id'];
+    const allowedEnroll = ['experience', 'goal', 'health'];
 
-    for (const key of allowed) {
+    const memberFields = [];
+    const memberValues = [];
+    const enrollFields = [];
+    const enrollValues = [];
+
+    for (const key of allowedMember) {
       if (req.body[key] !== undefined) {
-        fields.push(`${key} = ?`);
-        values.push(req.body[key]);
+        memberFields.push(`${key} = ?`);
+        memberValues.push(req.body[key]);
       }
     }
 
-    if (!fields.length) return res.status(400).json({ error: 'ไม่มีฟิลด์ให้อัปเดต' });
-    values.push(req.params.id);
+    for (const key of allowedEnroll) {
+      if (req.body[key] !== undefined) {
+        enrollFields.push(`${key} = ?`);
+        enrollValues.push(req.body[key]);
+      }
+    }
 
-    const [result] = await pool.query(
-      `UPDATE Member SET ${fields.join(', ')} WHERE member_id = ?`,
-      values
-    );
+    // update Member
+    if (memberFields.length) {
+      memberValues.push(req.params.id);
+      await pool.query(
+        `UPDATE Member SET ${memberFields.join(', ')} WHERE member_id = ?`,
+        memberValues
+      );
+    }
 
-    if (result.affectedRows === 0)
-      return res.status(404).json({ error: 'Not found' });
+    // update Enrollment
+    if (enrollFields.length) {
+      enrollValues.push(req.params.id);
+      await pool.query(
+        `UPDATE Enrollment SET ${enrollFields.join(', ')} WHERE member_id = ?`,
+        enrollValues
+      );
+    }
 
     const [rows] = await pool.query(
       `SELECT 
          m.member_id, m.full_name, m.email, m.age, m.phone, m.birthdate, m.gender,
-         m.experience, m.goal, m.health,
+         e.experience, e.goal, e.health,
          a.username, a.account_pic
        FROM Member m
        JOIN Account a ON m.account_id = a.account_id
+       LEFT JOIN Enrollment e ON m.member_id = e.member_id
        WHERE m.member_id = ?`,
       [req.params.id]
     );
+
     res.json(rows[0]);
   } catch (e) {
-    console.error(e);
+    console.error('PATCH member error:', e);
     res.status(500).json({ error: e.code || 'DB error', message: e.sqlMessage });
   }
 });
 
+// ==============================
 // DELETE /member/:id
+// ==============================
 router.delete('/:id', async (req, res) => {
   try {
     const [result] = await pool.query('DELETE FROM Member WHERE member_id = ?', [req.params.id]);
@@ -169,13 +220,23 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-/////////////////////
-// ✅ ดึงข้อมูลสมาชิกจาก account_id
+// ==============================
+// GET /member/by-account/:account_id
+// ==============================
 router.get('/by-account/:account_id', async (req, res) => {
   const { account_id } = req.params;
   try {
-    const [rows] = await pool.query('SELECT * FROM Member WHERE account_id = ?', [account_id]);
-    if (rows.length === 0) {
+    const [rows] = await pool.query(
+      `SELECT 
+         m.member_id, m.full_name, m.email, m.age, m.phone, m.birthdate, m.gender,
+         e.experience, e.goal, e.health
+       FROM Member m
+       LEFT JOIN Enrollment e ON m.member_id = e.member_id
+       WHERE m.account_id = ?`,
+      [account_id]
+    );
+
+    if (!rows.length) {
       return res.status(404).json({ message: 'ไม่พบข้อมูลสมาชิกของ account_id นี้' });
     }
     res.json(rows[0]);
@@ -185,5 +246,4 @@ router.get('/by-account/:account_id', async (req, res) => {
   }
 });
 
-/////////////////////
 export default router;
